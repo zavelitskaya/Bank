@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Договор {{ contract.number }}{% endblock %}
+
+{% block content %}
+
+<div class="contract-detail">
+    <div class="detail-card">
+        <div class="detail-header">
+            <h1>Договор {{ contract.number }}</h1>
+            <span class="status-badge {{ contract.status|lower }}">{{ contract.status }}</span>
+        </div>
+
+        <div class="detail-content">
+            <!-- Левая колонка - информация -->
+            <div class="detail-info">
+                <div class="info-section">
+                    <h3>Основная информация</h3>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <label>Клиент:</label>
+                            <span>{{ contract.client }}</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Услуга:</label>
+                            <span class="service-badge">{{ contract.service_type }}</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Дата начала:</label>
+                            <span>{{ contract.start_date }}</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Дата окончания:</label>
+                            <span>{{ contract.end_date }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-section">
+                    <h3>Описание</h3>
+                    <p>{{ contract.description }}</p>
+                </div>
+
+                <!-- Кнопки действий -->
+                <div class="detail-actions">
+                    <button class="add-to-cart-btn detail-btn" data-contract-id="{{ contract_id }}">
+                        Добавить в корзину
+                    </button>
+                    <a href="{% url 'contracts_list' %}" class="back-btn">
+                        Назад к списку
+                    </a>
+                </div>
+            </div>
+
+            <!-- Правая колонка - картинка -->
+            <div class="detail-image">
+                <img src="{{ contract.image_url }}" alt="{{ contract.service_type }}" class="contract-img">
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Обработка добавления в корзину на детальной странице
+document.querySelector('.add-to-cart-btn')?.addEventListener('click', function() {
+    const contractId = this.dataset.contractId;
+    
+    fetch(`/contracts/${contractId}/add-to-cart/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            // Обновляем счетчик корзины в хедере
+            document.querySelector('.cart-count').textContent = data.cart_count;
+            
+            // Меняем текст кнопки
+            this.textContent = 'В корзине';
+            this.disabled = true;
+            this.style.background = '#28a745';
+        }
+    });
+});
+</script>
+{% endblock %}

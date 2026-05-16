@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Договоры{% endblock %}
+
+{% block content %}
+<div class="controls-container">
+    <form method="get" class="search-box">
+        <input type="text" name="search" placeholder="Поиск по клиенту..." class="search-input"
+            value="{{ search_query }}">
+        <button type="submit" class="search-btn">
+            <img src="{% static 'icons/search.svg' %}" alt="Поиск" class="search-icon">
+        </button>
+    </form>
+
+    <!-- Делаем корзину ссылкой -->
+    <a href="{% url 'cart' %}" class="cart-widget">
+        <img src="{% static 'icons/cart.svg' %}" alt="Корзина" class="cart-icon">
+        <span class="cart-count">{{ cart_count }}</span>
+    </a>
+</div>
+
+<div class="contracts-grid">
+    {% for contract in contracts %}
+    <div class="contract-card" data-contract-id="{{ contract.id }}">
+        <div class="contract-info">
+            <h3>{{ contract.number }}</h3>
+            <p>{{ contract.client }}</p>
+        </div>
+
+        <!-- Контейнер для кнопок внизу -->
+        <div class="card-bottom">
+            <div class="card-buttons">
+                <a href="{% url 'contract_detail' contract.id %}" class="learn-more-btn">
+                    Подробнее
+                </a>
+                <button class="add-to-cart-btn" data-contract-id="{{ contract.id }}">
+                    В корзину
+                </button>
+            </div>
+
+            <div class="contract-image">
+                <img src="{{ contract.image_url }}" alt="{{ contract.service_type }}" class="contract-img">
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% endblock %}
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Обработка добавления в корзину на главной странице
+    document.querySelectorAll('.add-to-cart-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const contractId = this.dataset.contractId;
+            
+            fetch(`/contracts/${contractId}/add-to-cart/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Обновляем счетчик корзины в хедере
+                    document.querySelector('.cart-count').textContent = data.cart_count;
+                    
+                    // Меняем текст кнопки
+                    this.textContent = 'В корзине';
+                    this.disabled = true;
+                    this.style.background = '#28a745';
+                    
+                    // Показываем уведомление
+                    showNotification('Договор добавлен в корзину');
+                }
+            });
+        });
+    });
+    
+    // Функция уведомления
+    function showNotification(message) {
+        const notification = document.createElement('div');
+        notification.className = 'notification';
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        `;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
+    }
+});
+</script>
+<style>
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+</style>
+{% endblock %}

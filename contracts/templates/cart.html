@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Корзина{% endblock %}
+
+{% block content %}
+<div class="cart-page">
+    {% if cart_items %}
+    <div class="cart-content">
+        <!-- Список договоров в корзине -->
+        <div class="cart-items-section">
+            <h2>Договоры для привязки к счету ({{ cart_items|length }})</h2>
+            <div class="cart-items">
+                {% for item in cart_items %}
+                <div class="cart-item" data-contract-id="{{ item.id }}">
+                    <div class="cart-item-main">
+                        <div class="cart-item-image">
+                            <img src="{{ item.image_url }}" alt="{{ item.service_type }}" class="cart-item-img">
+                        </div>
+                        <div class="cart-item-details">
+                            <h3>{{ item.number }}</h3>
+                            <p class="cart-item-client">{{ item.client }}</p>
+                            <span class="service-badge">{{ item.service_type }}</span>
+                            
+                            <!-- Тоггл основного договора -->
+                            <div class="main-contract-toggle">
+                                <label class="toggle-label">
+                                    <input type="checkbox" 
+                                           class="main-contract-checkbox" 
+                                           data-contract-id="{{ item.id }}"
+                                           {% if main_contract_id == item.id %}checked{% endif %}>
+                                    <span class="toggle-slider"></span>
+                                    <span class="toggle-text">Основной договор для счета</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="cart-item-actions">
+                        <button class="remove-from-cart-btn" data-contract-id="{{ item.id }}">
+                            <img src="{% static 'icons/trash.svg' %}" alt="Удалить" class="trash-icon">
+                            Удалить
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Боковая панель с информацией о счете -->
+        <div class="cart-sidebar">
+            <div class="summary-card">
+                <h3>Информация о счете</h3>
+                <div class="account-info">
+                    <div class="account-number-section">
+                        <label>Номер счета:</label>
+                        <div class="account-number-display">
+                            {{ account_number }}
+                        </div>
+                        <small>Номер генерируется автоматически</small>
+                    </div>
+                    
+                    <div class="main-contract-info">
+                        <label>Основной договор:</label>
+                        <div class="main-contract-display">
+                            {% for item in cart_items %}
+                                {% if main_contract_id == item.id %}
+                                    {{ item.number }} - {{ item.client }}
+                                {% endif %}
+                            {% empty %}
+                                <span class="no-main-contract">Не выбран</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="cart-actions">
+                    <button class="create-request-btn primary-btn" 
+                            {% if not main_contract_id %}disabled{% endif %}>
+                        Создать заявку
+                    </button>
+                    <a href="{% url 'contracts_list' %}" class="continue-shopping-btn">
+                        ← Вернуться
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+        <!-- Пустая корзина -->
+        <div class="empty-cart">
+            <div class="empty-cart-icon">🛒</div>
+            <h2>Корзина пуста</h2>
+            <p>Вы еще не добавили договоры для открытия счета</p>
+            <a href="{% url 'contracts_list' %}" class="primary-btn">
+                Перейти к договорам
+            </a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Функция для установки основного договора
+function setMainContract(contractId) {
+    console.log('Setting main contract:', contractId);
+    
+    fetch(`/set-main-contract/${contractId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            // Снимаем галочки с других чекбоксов
+            document.querySelectorAll('.main-contract-checkbox').forEach(checkbox => {
+                if (checkbox.dataset.contractId != contractId) {
+                    checkbox.checked = false;
+                }
+            });
+            
+            // Обновляем отображение основного договора
+            updateMainContractDisplay(contractId);
+            
+            // Активируем кнопку создания заявки
+            document.querySelector('.create-request-btn').disabled = false;
+        }
+    })
+    .catch(error => {
+        console.error('Error setting main contract:', error);
+    });
+}
+
+// Функция обновления отображения основного договора
+function updateMainContractDisplay(contractId) {
+    const contractItem = document.querySelector(`[data-contract-id="${contractId}"]`);
+    if (contractItem) {
+        const contractNumber = contractItem.querySelector('h3').textContent;
+        const clientName = contractItem.querySelector('.cart-item-client').textContent;
+        
+        document.querySelector('.main-contract-display').innerHTML = 
+            `${contractNumber} - ${clientName}`;
+    }
+}
+
+// Функция для удаления из корзины
+function removeFromCart(contractId) {
+    // ... существующий код удаления (оставляем как есть) ...
+}
+
+// Назначаем обработчики
+document.addEventListener('DOMContentLoaded', function() {
+    // Обработчики основного договора
+    document.querySelectorAll('.main-contract-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                setMainContract(this.dataset.contractId);
+            }
+        });
+    });
+    
+    // Обработчики удаления
+    document.querySelectorAll('.remove-from-cart-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const contractId = this.dataset.contractId;
+            removeFromCart(contractId);
+        });
+    });
+
+    // Обработка создания заявки
+    document.querySelector('.create-request-btn')?.addEventListener('click', function() {
+        const mainContractId = '{{ main_contract_id }}';
+        if (mainContractId && confirm('Создать заявку на открытие счета?')) {
+            alert('Заявка успешно создана! Счет будет открыт в течение 24 часов.');
+        }
+    });
+});
+</script>
+{% endblock %}
