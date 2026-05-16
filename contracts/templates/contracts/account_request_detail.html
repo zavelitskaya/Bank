@@ -15,8 +15,8 @@
                 <div class="cart-item" data-contract-id="{{ item.contract.id }}">
                     <div class="cart-item-main">
                         <div class="cart-item-image">
-                            {% if item.contract.image_key %}
-                                <img src="#" alt="{{ item.contract.contract_type }}" class="cart-item-img">
+                            {% if item.contract.image_url %}
+                                <img src="{{ item.contract.image_url }}" alt="{{ item.contract.contract_type }}" class="cart-item-img">
                             {% else %}
                                 <div class="no-image">Нет изображения</div>
                             {% endif %}
@@ -109,7 +109,7 @@
 
 {% block extra_js %}
 <script>
-// Установка основного договора через fetch (без перезагрузки)
+// Установка основного договора через fetch
 document.querySelectorAll('.main-contract-checkbox').forEach(checkbox => {
     checkbox.addEventListener('change', function() {
         const contractId = this.dataset.contractId;
@@ -133,8 +133,11 @@ document.querySelectorAll('.main-contract-checkbox').forEach(checkbox => {
                     }
                 });
                 // Обновляем отображение основного договора
-                location.reload(); // временно перезагружаем страницу
+                location.reload();
             }
+        })
+        .catch(error => {
+            console.error('Error:', error);
         });
     });
 });

@@ -4,6 +4,8 @@ from django.contrib import messages
 from django.utils import timezone
 from django.http import JsonResponse
 from .models import BankContract, AccountRequest, RequestedContract
+from minio import Minio
+from django.conf import settings
 
 # ============================================
 # VIEWS ДЛЯ ЛАБОРАТОРНОЙ 2
@@ -13,13 +15,15 @@ def contracts_list(request):
     """Страница 1: список договоров + карточка корзины"""
     search_query = request.GET.get('search', '')
     
-    # ORM запрос с фильтрацией
     contracts = BankContract.objects.filter(is_active=True)
     if search_query:
         contracts = contracts.filter(counterparty_name__icontains=search_query)
     
-    # Находим черновик заявки для текущего пользователя
-    # Временно используем пользователя с id=2 (operator)
+    # Добавляем URL изображений
+    for contract in contracts:
+        contract.image_url = f"http://localhost:9000/banking-images/{contract.image_key}"
+        print(f"DEBUG: {contract.contract_number} -> image_url = {contract.image_url}")  # Отладка
+    
     account_request = AccountRequest.objects.filter(
         status='DRAFT',
         creator_id=2
@@ -39,28 +43,34 @@ def contracts_list(request):
     }
     return render(request, 'contracts/contracts_list.html', context)
 
-
 def contract_detail(request, contract_id):
     """Страница 2: детальная информация о договоре"""
     contract = get_object_or_404(BankContract, id=contract_id, is_active=True)
+    contract.image_url = f"http://localhost:9000/banking-images/{contract.image_key}"  # Добавьте эту строку
     return render(request, 'contracts/contract_detail.html', {
         'contract': contract,
     })
-
 
 def account_request_detail(request, request_id):
     """Страница 3: просмотр заявки (корзины)"""
     account_request = get_object_or_404(AccountRequest, id=request_id, status='DRAFT')
     
-    # Получаем все связи с договорами
     requested_contracts = account_request.requested_contracts.select_related('bank_contract').all()
     
     requested_contracts_with_details = []
     for item in requested_contracts:
+        contract = item.bank_contract
+        contract.image_url = f"http://localhost:9000/banking-images/{contract.image_key}"  # Добавьте эту строку
         requested_contracts_with_details.append({
-            'contract': item.bank_contract,
+            'contract': contract,
             'quantity': item.quantity,
         })
+    
+    context = {
+        'account_request': account_request,
+        'requested_contracts': requested_contracts_with_details,
+    }
+    return render(request, 'contracts/account_request_detail.html', context)
     
     context = {
         'account_request': account_request,
@@ -126,3 +136,9 @@ def remove_from_request(request, contract_id):
             messages.success(request, 'Договор удалён из заявки')
             return redirect('account_request_detail', request_id=account_request.id)
     return redirect('contracts_list')
+
+def get_image_url(image_key):
+    """Получить прямую ссылку на изображение из публичного bucket"""
+    if not image_key:
+        return None
+    return f"http://localhost:9000/banking-images/{image_key}"

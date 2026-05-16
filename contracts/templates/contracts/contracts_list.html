@@ -36,8 +36,8 @@
             </div>
 
             <div class="contract-image">
-                {% if contract.image_key %}
-                    <img src="#" alt="{{ contract.contract_type }}" class="contract-img">
+                {% if contract.image_url %}
+                    <img src="{{ contract.image_url }}" alt="{{ contract.contract_type }}" class="contract-img">
                 {% else %}
                     <div class="no-image">Нет изображения</div>
                 {% endif %}

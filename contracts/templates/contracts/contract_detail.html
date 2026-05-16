@@ -9,7 +9,7 @@
     <div class="detail-card">
         <div class="detail-header">
             <h1>Договор {{ contract.contract_number }}</h1>
-            <span class="service-badge">{{ contract.contract_type }}</span>
+            <span class="service-badge">{{ contract.get_contract_type_display }}</span>
         </div>
 
         <div class="detail-content">
@@ -24,7 +24,7 @@
                         </div>
                         <div class="info-item">
                             <label>Тип договора:</label>
-                            <span>{{ contract.contract_type }}</span>
+                            <span>{{ contract.get_contract_type_display }}</span>
                         </div>
                     </div>
                 </div>
@@ -43,8 +43,8 @@
 
             <!-- Правая колонка - картинка -->
             <div class="detail-image">
-                {% if contract.image_key %}
-                    <img src="#" alt="{{ contract.contract_type }}" class="contract-img">
+                {% if contract.image_url %}
+                    <img src="{{ contract.image_url }}" alt="{{ contract.contract_type }}" class="contract-img">
                 {% else %}
                     <div class="no-image">Нет изображения</div>
                 {% endif %}
