@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Договор {{ contract.contract_number }}{% endblock %}
+
+{% block content %}
+
+<div class="contract-detail">
+    <div class="detail-card">
+        <div class="detail-header">
+            <h1>Договор {{ contract.contract_number }}</h1>
+            <span class="service-badge">{{ contract.contract_type }}</span>
+        </div>
+
+        <div class="detail-content">
+            <!-- Левая колонка - информация -->
+            <div class="detail-info">
+                <div class="info-section">
+                    <h3>Основная информация</h3>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <label>Контрагент:</label>
+                            <span>{{ contract.counterparty_name }}</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Тип договора:</label>
+                            <span>{{ contract.contract_type }}</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Стоимость:</label>
+                            <span>{{ contract.price }} ₽</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-section">
+                    <h3>Описание</h3>
+                    <p>{{ contract.description }}</p>
+                </div>
+
+                <div class="detail-actions">
+                    <a href="{% url 'contracts_list' %}" class="back-btn">
+                        ← Назад к списку
+                    </a>
+                </div>
+            </div>
+
+            <!-- Правая колонка - картинка -->
+            <div class="detail-image">
+                {% if contract.image_key %}
+                    <img src="#" alt="{{ contract.contract_type }}" class="contract-img">
+                {% else %}
+                    <div class="no-image">Нет изображения</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Заявка на открытие счета{% endblock %}
+
+{% block content %}
+<div class="cart-page">
+    {% if requested_contracts %}
+    <div class="cart-content">
+        <!-- Список договоров в заявке -->
+        <div class="cart-items-section">
+            <h2>Договоры в заявке ({{ requested_contracts|length }})</h2>
+            <div class="cart-items">
+                {% for item in requested_contracts %}
+                <div class="cart-item">
+                    <div class="cart-item-main">
+                        <div class="cart-item-image">
+                            {% if item.contract.image_key %}
+                                <img src="#" alt="{{ item.contract.contract_type }}" class="cart-item-img">
+                            {% else %}
+                                <div class="no-image">Нет изображения</div>
+                            {% endif %}
+                        </div>
+                        <div class="cart-item-details">
+                            <h3>{{ item.contract.contract_number }}</h3>
+                            <p class="cart-item-client">{{ item.contract.counterparty_name }}</p>
+                            <span class="service-badge">{{ item.contract.contract_type }}</span>
+                            <div class="quantity-info">
+                                <label>Количество: {{ item.quantity }}</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Боковая панель с информацией о счете -->
+        <div class="cart-sidebar">
+            <div class="summary-card">
+                <h3>Информация о счете</h3>
+                <div class="account-info">
+                    <div class="account-number-section">
+                        <label>Номер счета (будет сгенерирован):</label>
+                        <div class="account-number-display">
+                            {{ account_request.result_account_number|default:"Не назначен" }}
+                        </div>
+                        <small>Номер счета будет назначен бухгалтером</small>
+                    </div>
+                    
+                    <div class="balance-info">
+                        <label>Балансовый номер счета:</label>
+                        <div class="balance-display">
+                            {{ account_request.balance_account_number }}
+                        </div>
+                    </div>
+                    
+                    <div class="currency-info">
+                        <label>Код валюты:</label>
+                        <div class="currency-display">
+                            {% if account_request.currency_code == '810' %}RUB (810){% else %}USD (840){% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="cart-actions">
+                    <a href="{% url 'contracts_list' %}" class="continue-shopping-btn">
+                        ← Вернуться к договорам
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+        <!-- Пустая заявка -->
+        <div class="empty-cart">
+            <div class="empty-cart-icon">📋</div>
+            <h2>Заявка пуста</h2>
+            <p>Вы еще не добавили договоры для открытия счета</p>
+            <a href="{% url 'contracts_list' %}" class="primary-btn">
+                Перейти к договорам
+            </a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

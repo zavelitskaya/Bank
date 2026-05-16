@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Банковские договоры{% endblock %}
+
+{% block content %}
+<div class="controls-container">
+    <form method="get" class="search-box">
+        <input type="text" name="search" placeholder="Поиск по клиенту..." class="search-input"
+            value="{{ search_query }}">
+        <button type="submit" class="search-btn">
+            <img src="{% static 'icons/search.svg' %}" alt="Поиск" class="search-icon">
+        </button>
+    </form>
+
+    <!-- Карточка корзины (текущая заявка) -->
+    <a href="{% url 'account_request_detail' account_request_id %}" class="cart-widget">
+        <img src="{% static 'icons/cart.svg' %}" alt="Заявка" class="cart-icon">
+        <span class="cart-count">{{ cart_items_count }}</span>
+    </a>
+</div>
+
+<div class="contracts-grid">
+    {% for contract in contracts %}
+    <div class="contract-card">
+        <div class="contract-info">
+            <h3>{{ contract.contract_number }}</h3>
+            <p>{{ contract.counterparty_name }}</p>
+            <p class="contract-price">{{ contract.price }} ₽</p>
+        </div>
+
+        <div class="card-bottom">
+            <div class="card-buttons">
+                <a href="{% url 'contract_detail' contract.id %}" class="learn-more-btn">
+                    Подробнее
+                </a>
+            </div>
+
+            <div class="contract-image">
+                {% if contract.image_key %}
+                    <img src="#" alt="{{ contract.contract_type }}" class="contract-img">
+                {% else %}
+                    <div class="no-image">Нет изображения</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if not contracts %}
+    <div class="empty-results">
+        <p>Договоры не найдены</p>
+    </div>
+{% endif %}
+{% endblock %}
