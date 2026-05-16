@@ -1,73 +1,40 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404, redirect
+from django.db import connection
+from django.contrib import messages
+from django.utils import timezone
+from django.http import JsonResponse
+from .models import BankContract, AccountRequest, RequestedContract
 
 # ============================================
-# ДАННЫЕ В ПАМЯТИ (БЕЗ БАЗЫ ДАННЫХ)
-# ============================================
-
-# Услуги = банковские договоры
-BANK_CONTRACTS = [
-    {
-        'id': 1,
-        'contract_number': 'РКО-001/2025',
-        'contract_type': 'РКО',
-        'counterparty_name': 'ООО "Центр кибернетической интеграции"',
-        'price': 1500.00,
-        'description': 'Расчетно-кассовое обслуживание для малого бизнеса. Включает до 100 бесплатных платежей в месяц.',
-        'image_key': 'rko.png',
-    },
-    {
-        'id': 2,
-        'contract_number': 'ЗП-002/2025',
-        'contract_type': 'Зарплатный проект',
-        'counterparty_name': 'ООО "ТехноИнтеграция"',
-        'price': 5000.00,
-        'description': 'Зарплатный проект для компаний до 500 сотрудников. Выгрузка реестров в день зарплаты.',
-        'image_key': 'salary.png',
-    },
-    {
-        'id': 3,
-        'contract_number': 'ЭК-003/2025',
-        'contract_type': 'Эквайринг',
-        'counterparty_name': 'ИП Иванов А.С.',
-        'price': 2500.00,
-        'description': 'Торговый эквайринг. Ставка 1.8% от оборота. Терминал в подарок.',
-        'image_key': 'acquiring.png',
-    },
-]
-
-# Заявка-черновик (у пользователя только одна)
-ACCOUNT_REQUEST_DRAFT = {
-    'id': 1,
-    'status': 'DRAFT',
-    'balance_account_number': '40802810',
-    'currency_code': '810',
-    'result_account_number': '',
-    'requested_contracts': [
-        {'contract_id': 1, 'quantity': 1},
-        {'contract_id': 3, 'quantity': 2},
-    ]
-}
-
-
-# ============================================
-# VIEWS (ТОЛЬКО GET, БЕЗ СЕССИЙ)
+# VIEWS ДЛЯ ЛАБОРАТОРНОЙ 2
 # ============================================
 
 def contracts_list(request):
     """Страница 1: список договоров + карточка корзины"""
     search_query = request.GET.get('search', '')
     
-    contracts = BANK_CONTRACTS.copy()
+    # ORM запрос с фильтрацией
+    contracts = BankContract.objects.filter(is_active=True)
     if search_query:
-        contracts = [c for c in contracts 
-                    if search_query.lower() in c['counterparty_name'].lower()]
+        contracts = contracts.filter(counterparty_name__icontains=search_query)
     
-    cart_items_count = len(ACCOUNT_REQUEST_DRAFT['requested_contracts'])
+    # Находим черновик заявки для текущего пользователя
+    # Временно используем пользователя с id=2 (operator)
+    account_request = AccountRequest.objects.filter(
+        status='DRAFT',
+        creator_id=2
+    ).first()
+    
+    cart_items_count = 0
+    account_request_id = None
+    if account_request:
+        account_request_id = account_request.id
+        cart_items_count = account_request.requested_contracts.count()
     
     context = {
         'contracts': contracts,
         'search_query': search_query,
-        'account_request_id': ACCOUNT_REQUEST_DRAFT['id'],
+        'account_request_id': account_request_id,
         'cart_items_count': cart_items_count,
     }
     return render(request, 'contracts/contracts_list.html', context)
@@ -75,16 +42,7 @@ def contracts_list(request):
 
 def contract_detail(request, contract_id):
     """Страница 2: детальная информация о договоре"""
-    # Ручной поиск в списке (без БД)
-    contract = None
-    for c in BANK_CONTRACTS:
-        if c['id'] == contract_id:
-            contract = c
-            break
-    
-    if not contract:
-        return render(request, '404.html', status=404)
-    
+    contract = get_object_or_404(BankContract, id=contract_id, is_active=True)
     return render(request, 'contracts/contract_detail.html', {
         'contract': contract,
     })
@@ -92,24 +50,79 @@ def contract_detail(request, contract_id):
 
 def account_request_detail(request, request_id):
     """Страница 3: просмотр заявки (корзины)"""
-    if request_id != ACCOUNT_REQUEST_DRAFT['id']:
-        return render(request, '404.html', status=404)
+    account_request = get_object_or_404(AccountRequest, id=request_id, status='DRAFT')
+    
+    # Получаем все связи с договорами
+    requested_contracts = account_request.requested_contracts.select_related('bank_contract').all()
     
     requested_contracts_with_details = []
-    for item in ACCOUNT_REQUEST_DRAFT['requested_contracts']:
-        contract = None
-        for c in BANK_CONTRACTS:
-            if c['id'] == item['contract_id']:
-                contract = c
-                break
-        if contract:
-            requested_contracts_with_details.append({
-                'contract': contract,
-                'quantity': item['quantity'],
-            })
+    for item in requested_contracts:
+        requested_contracts_with_details.append({
+            'contract': item.bank_contract,
+            'quantity': item.quantity,
+        })
     
     context = {
-        'account_request': ACCOUNT_REQUEST_DRAFT,
+        'account_request': account_request,
         'requested_contracts': requested_contracts_with_details,
     }
     return render(request, 'contracts/account_request_detail.html', context)
+
+
+def delete_account_request(request, request_id):
+    """Логическое удаление заявки через прямой SQL запрос (не ORM)"""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "UPDATE contracts_accountrequest SET status = 'DELETED' WHERE id = %s AND status = 'DRAFT'",
+            [request_id]
+        )
+    messages.success(request, 'Заявка удалена')
+    return redirect('contracts_list')
+
+
+def set_primary_contract(request, request_id, contract_id):
+    """Установка основного договора для счета"""
+    if request.method == 'POST':
+        account_request = get_object_or_404(AccountRequest, id=request_id, status='DRAFT')
+        contract = get_object_or_404(BankContract, id=contract_id)
+        
+        account_request.primary_contract = contract
+        account_request.save()
+        
+        return JsonResponse({'status': 'success'})
+    return JsonResponse({'status': 'error'}, status=400)
+
+
+def submit_account_request(request, request_id):
+    """Создание заявки (меняем статус с DRAFT на SUBMITTED)"""
+    if request.method == 'POST':
+        account_request = get_object_or_404(AccountRequest, id=request_id, status='DRAFT')
+        
+        # Проверяем, что основной договор выбран
+        if not account_request.primary_contract:
+            messages.error(request, 'Выберите основной договор')
+            return redirect('account_request_detail', request_id=request_id)
+        
+        # Обновляем статус и дату формирования
+        account_request.status = 'SUBMITTED'
+        account_request.submitted_at = timezone.now()
+        account_request.save()
+        
+        messages.success(request, 'Заявка успешно создана')
+        return redirect('contracts_list')
+    return redirect('contracts_list')
+
+
+def remove_from_request(request, contract_id):
+    """Удаление договора из заявки"""
+    if request.method == 'POST':
+        account_request = AccountRequest.objects.filter(status='DRAFT', creator_id=2).first()
+        if account_request:
+            # Удаляем связь
+            RequestedContract.objects.filter(
+                account_request=account_request,
+                bank_contract_id=contract_id
+            ).delete()
+            messages.success(request, 'Договор удалён из заявки')
+            return redirect('account_request_detail', request_id=account_request.id)
+    return redirect('contracts_list')
