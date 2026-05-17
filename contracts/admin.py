@@ -8,10 +8,11 @@ class BankContractAdmin(admin.ModelAdmin):
 
 @admin.register(AccountRequest)
 class AccountRequestAdmin(admin.ModelAdmin):
-    list_display = ('id', 'status', 'creator', 'primary_contract', 'balance_account_number', 'currency_code')
+    list_display = ('id', 'status', 'creator', 'primary_contract', 'currency_code')
     list_filter = ('status', 'currency_code')
     raw_id_fields = ('primary_contract',)
 
 @admin.register(RequestedContract)
 class RequestedContractAdmin(admin.ModelAdmin):
-    list_display = ('account_request', 'bank_contract', 'quantity')
+    list_display = ('account_request', 'bank_contract', 'connection_date', 'comment')
+    list_filter = ('connection_date',)

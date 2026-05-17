@@ -18,7 +18,6 @@ urlpatterns = [
     path('account-request/<int:request_id>/set-primary/<int:contract_id>/', views.set_primary_contract, name='set_primary_contract'),
     path('account-request/<int:request_id>/submit/', views.submit_account_request, name='submit_account_request'),
     path('request/remove/<int:contract_id>/', views.remove_from_request, name='remove_from_request'),
-    
     # ============================================
     # Загрузка изображений
     # ============================================
@@ -37,4 +36,6 @@ urlpatterns = [
     # API URL (для 3-4 лабораторных)
     # ============================================
     path('', include(router.urls)),
+    path('api/requested-contracts/update_comment/', views.RequestedContractViewSet.as_view({'post': 'update_comment'}), name='update_comment'),
+    path('api/account-requests/<int:pk>/update_currency/', views.AccountRequestViewSet.as_view({'put': 'update_currency'}), name='update_currency'),
 ]

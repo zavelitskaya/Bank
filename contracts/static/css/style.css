@@ -596,3 +596,55 @@ main {
     font-size: 13px;
     color: #555;
 }
+.delete-request-btn {
+    background: #dc3545;
+    color: white;
+    border: none;
+    padding: 12px;
+    border-radius: 30px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+.delete-request-btn:hover {
+    background: #c82333;
+}
+
+.comment-input {
+    flex: 1;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    font-size: 13px;
+    font-family: inherit;
+}
+
+.comment-input:focus {
+    outline: none;
+    border-color: #1a73e8;
+}
+
+.currency-input {
+    width: 80px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    font-size: 14px;
+    font-family: monospace;
+    text-align: center;
+}
+
+.currency-input:focus {
+    outline: none;
+    border-color: #1a73e8;
+}
+
+.currency-hint {
+    display: block;
+    font-size: 11px;
+    color: #666;
+    margin-top: 4px;
+}

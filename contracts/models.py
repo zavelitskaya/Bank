@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
 
 class BankContract(models.Model):
     """Услуга = банковский договор"""
@@ -46,7 +47,6 @@ class AccountRequest(models.Model):
     moderator = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True, related_name='moderated_requests')
     
     # Поля по вашей теме
-    balance_account_number = models.CharField(max_length=20)
     currency_code = models.CharField(max_length=3, choices=CURRENCY_CODES, default='810')
     
     # Основной договор для счета
@@ -62,17 +62,18 @@ class AccountRequest(models.Model):
     assigned_account_number = models.CharField(max_length=34, blank=True, null=True)
     
     def __str__(self):
-        return f"Заявка #{self.id} - {self.balance_account_number}"
+        return f"Заявка #{self.id}"
 
 
 class RequestedContract(models.Model):
     """Связь м-м: заявка ←→ договор (дополнительные договоры к счету)"""
     account_request = models.ForeignKey(AccountRequest, on_delete=models.CASCADE, related_name='requested_contracts')
     bank_contract = models.ForeignKey(BankContract, on_delete=models.PROTECT)
-    quantity = models.PositiveIntegerField(default=1)
+    comment = models.TextField(blank=True, null=True, verbose_name="Комментарий")
+    connection_date = models.DateField(default=timezone.now, verbose_name="Дата подключения")
     
     class Meta:
         unique_together = ['account_request', 'bank_contract']
     
     def __str__(self):
-        return f"{self.bank_contract.contract_number} x{self.quantity}"
+        return f"{self.bank_contract.contract_number} - {self.connection_date}"

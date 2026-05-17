@@ -21,15 +21,13 @@ class RequestedContractSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = RequestedContract
-        fields = ['id', 'bank_contract', 'contract_details', 'quantity']
+        fields = ['id', 'bank_contract', 'contract_details', 'comment', 'connection_date']
 
 
 class AccountRequestSerializer(serializers.ModelSerializer):
-    creator = serializers.StringRelatedField(read_only=True)
-    moderator = serializers.StringRelatedField(read_only=True)
     creator_name = serializers.CharField(source='creator.username', read_only=True)
     moderator_name = serializers.CharField(source='moderator.username', read_only=True)
-    requested_contracts = RequestedContractSerializer(many=True, read_only=True)  # Убрали source
+    requested_contracts = RequestedContractSerializer(many=True, read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     currency_display = serializers.CharField(source='get_currency_code_display', read_only=True)
     
@@ -37,7 +35,6 @@ class AccountRequestSerializer(serializers.ModelSerializer):
         model = AccountRequest
         fields = ['id', 'status', 'status_display', 'created_at', 'submitted_at', 'completed_at',
                   'creator', 'creator_name', 'moderator', 'moderator_name',
-                  'balance_account_number', 'currency_code', 'currency_display',
+                  'currency_code', 'currency_display',
                   'primary_contract', 'assigned_account_number', 'requested_contracts']
-        read_only_fields = ['id', 'created_at', 'submitted_at', 'completed_at', 
-                           'creator', 'moderator', 'assigned_account_number']
+read_only_fields = ['id', 'created_at', 'submitted_at', 'completed_at', 'creator', 'moderator']

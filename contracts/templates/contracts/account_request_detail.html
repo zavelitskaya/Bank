@@ -4,15 +4,14 @@
 {% block title %}Заявка на открытие счета{% endblock %}
 
 {% block content %}
-<div class="cart-page">
+<div class="cart-page" data-request-id="{{ account_request.id }}">
     {% if requested_contracts %}
     <div class="cart-content">
-        <!-- Список договоров в заявке -->
         <div class="cart-items-section">
             <h2>Договоры для привязки к счету ({{ requested_contracts|length }})</h2>
             <div class="cart-items">
                 {% for item in requested_contracts %}
-                <div class="cart-item">
+                <div class="cart-item" data-contract-id="{{ item.contract.id }}">
                     <div class="cart-item-main">
                         <div class="cart-item-image">
                             {% if item.contract.image_url %}
@@ -25,10 +24,25 @@
                             <h3>{{ item.contract.contract_number }}</h3>
                             <p class="cart-item-client">{{ item.contract.counterparty_name }}</p>
                             <span class="service-badge">{{ item.contract.get_contract_type_display }}</span>
-                            <!-- Тоггл основного договора (AJAX) -->
+                            
+                            <div class="mm-fields">
+                                <div class="mm-field">
+                                    <label>Дата подключения:</label>
+                                    <span>{{ item.connection_date|default:"Не указана" }}</span>
+                                </div>
+                                <div class="mm-field">
+                                    <label>Комментарий:</label>
+                                    <input type="text" class="comment-input" data-contract-id="{{ item.contract.id }}" value="{{ item.comment|default:'' }}" placeholder="Введите комментарий">
+                                </div>
+                            </div>
+                            
                             <div class="main-contract-toggle">
                                 <label class="toggle-label">
-                                    <input type="checkbox" class="main-contract-checkbox" data-contract-id="{{ item.contract.id }}" data-request-id="{{ account_request.id }}" {% if account_request.primary_contract.id == item.contract.id %}checked{% endif %}>
+                                    {% if account_request.primary_contract.id == item.contract.id %}
+                                        <input type="checkbox" class="main-contract-checkbox" data-contract-id="{{ item.contract.id }}" checked>
+                                    {% else %}
+                                        <input type="checkbox" class="main-contract-checkbox" data-contract-id="{{ item.contract.id }}">
+                                    {% endif %}
                                     <span class="toggle-slider"></span>
                                     <span class="toggle-text">Основной договор для счета</span>
                                 </label>
@@ -36,11 +50,9 @@
                         </div>
                     </div>
                     <div class="cart-item-actions">
-                        <form method="post" action="{% url 'remove_from_request' item.contract.id %}" style="display: inline;">
+                        <form method="post" action="{% url 'remove_from_request' item.contract.id %}">
                             {% csrf_token %}
-                            <button type="submit" class="remove-from-cart-btn">
-                                🗑 Удалить
-                            </button>
+                            <button type="submit" class="remove-from-cart-btn">🗑 Удалить</button>
                         </form>
                     </div>
                 </div>
@@ -48,24 +60,20 @@
             </div>
         </div>
 
-        <!-- Боковая панель с информацией о счете -->
         <div class="cart-sidebar">
             <div class="summary-card">
                 <h3>Информация о счете</h3>
                 <div class="account-info">
                     <div class="account-number-section">
                         <label>Номер счета:</label>
-                        <div class="account-number-display">
+                        <div class="account-number-display" id="account-number-display">
                             {{ account_request.assigned_account_number|default:"Не назначен" }}
                         </div>
-                        <small>Номер счета будет назначен бухгалтером</small>
                     </div>
                     
                     <div class="currency-info">
-                        <label>Валюта:</label>
-                        <div class="currency-display">
-                            {% if account_request.currency_code == '810' %}RUB (810){% else %}USD (840){% endif %}
-                        </div>
+                        <label>Код валюты (цифры):</label>
+                        <input type="text" id="currency-code-input" class="currency-input" value="{{ account_request.currency_code|default:'810' }}" maxlength="3" placeholder="3 цифры">
                     </div>
                     
                     <div class="main-contract-info">
@@ -83,14 +91,13 @@
                 <div class="cart-actions">
                     <form method="post" action="{% url 'submit_account_request' account_request.id %}">
                         {% csrf_token %}
-                        <button type="submit" class="create-request-btn primary-btn" 
-                                {% if not account_request.primary_contract %}disabled{% endif %}>
-                            Создать заявку
-                        </button>
+                        <button type="submit" class="create-request-btn primary-btn" {% if not account_request.primary_contract %}disabled{% endif %}>Создать заявку</button>
                     </form>
-                    <a href="{% url 'contracts_list' %}" class="continue-shopping-btn">
-                        ← Вернуться к договорам
-                    </a>
+                    <form method="post" action="{% url 'delete_account_request' account_request.id %}">
+                        {% csrf_token %}
+                        <button type="submit" class="delete-request-btn" onclick="return confirm('Вы уверены?');">🗑 Удалить заявку</button>
+                    </form>
+                    <a href="{% url 'contracts_list' %}" class="continue-shopping-btn">← Вернуться к договорам</a>
                 </div>
             </div>
         </div>
@@ -100,9 +107,7 @@
         <div class="empty-cart-icon">📋</div>
         <h2>Заявка пуста</h2>
         <p>Вы еще не добавили договоры для открытия счета</p>
-        <a href="{% url 'contracts_list' %}" class="primary-btn">
-            Перейти к договорам
-        </a>
+        <a href="{% url 'contracts_list' %}" class="primary-btn">Перейти к договорам</a>
     </div>
     {% endif %}
 </div>
@@ -110,105 +115,123 @@
 
 {% block extra_js %}
 <script>
-// Получаем CSRF токен
-var csrftoken = '{{ csrf_token }}';
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+const csrftoken = getCookie('csrftoken');
+const requestId = document.querySelector('.cart-page').getAttribute('data-request-id');
 
-// Функция установки основного договора
-function setPrimaryContract(requestId, contractId, checkboxElement) {
-    var url = '/account-request/' + requestId + '/set-primary/' + contractId + '/';
-    
-    fetch(url, {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': csrftoken
-        }
-    })
-    .then(function(response) {
-        return response.json();
-    })
-    .then(function(data) {
-        if (data.status === 'success') {
-            // Снимаем галочки со всех других чекбоксов
-            var allCheckboxes = document.querySelectorAll('.main-contract-checkbox');
-            for (var i = 0; i < allCheckboxes.length; i++) {
-                if (allCheckboxes[i] !== checkboxElement) {
-                    allCheckboxes[i].checked = false;
-                }
-            }
-            // Обновляем отображение основного договора в боковой панели
-            var contractNumber = checkboxElement.closest('.cart-item').querySelector('h3').innerText;
-            var clientName = checkboxElement.closest('.cart-item').querySelector('.cart-item-client').innerText;
-            var mainContractDisplay = document.querySelector('.main-contract-display');
-            mainContractDisplay.innerHTML = contractNumber + ' - ' + clientName;
-            
-            // Активируем кнопку создания заявки
-            var createBtn = document.querySelector('.create-request-btn');
-            if (createBtn) {
-                createBtn.disabled = false;
-            }
-        } else {
-            alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
-            checkboxElement.checked = false;
-        }
-    })
-    .catch(function(error) {
-        console.error('Error:', error);
-        alert('Ошибка запроса');
-        checkboxElement.checked = false;
-    });
+function generateAccountNumber(currencyCode) {
+    if (!currencyCode || currencyCode.length !== 3) {
+        return 'Не назначен';
+    }
+    const randomDigits = Math.floor(Math.random() * 100000000).toString().padStart(8, '0');
+    return '40802' + currencyCode + randomDigits;
 }
 
-// Функция снятия основного договора
-function removePrimaryContract(requestId, checkboxElement) {
-    var url = '/account-request/' + requestId + '/set-primary/0/';  // Передаём 0 или null для снятия
-    
-    fetch(url, {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': csrftoken
-        }
-    })
-    .then(function(response) {
-        return response.json();
-    })
-    .then(function(data) {
-        if (data.status === 'success') {
-            // Обновляем отображение в боковой панели
-            var mainContractDisplay = document.querySelector('.main-contract-display');
-            mainContractDisplay.innerHTML = 'Не выбран';
-            
-            // Деактивируем кнопку создания заявки
-            var createBtn = document.querySelector('.create-request-btn');
-            if (createBtn) {
-                createBtn.disabled = true;
-            }
-        } else {
-            alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
-            checkboxElement.checked = true;
-        }
-    })
-    .catch(function(error) {
-        console.error('Error:', error);
-        alert('Ошибка запроса');
-        checkboxElement.checked = true;
-    });
-}
-
-// Назначаем обработчики на все чекбоксы
-var checkboxes = document.querySelectorAll('.main-contract-checkbox');
-for (var i = 0; i < checkboxes.length; i++) {
-    var checkbox = checkboxes[i];
-    checkbox.addEventListener('change', function(event) {
-        var checkboxElement = event.target;
-        var contractId = parseInt(checkboxElement.getAttribute('data-contract-id'));
-        var requestId = parseInt(checkboxElement.getAttribute('data-request-id'));
+// Установка основного договора
+document.querySelectorAll('.main-contract-checkbox').forEach(function(checkbox) {
+    checkbox.addEventListener('change', function() {
+        const contractId = this.getAttribute('data-contract-id');
         
-        if (checkboxElement.checked) {
-            setPrimaryContract(requestId, contractId, checkboxElement);
+        if (this.checked) {
+            fetch('/account-request/' + requestId + '/set-primary/' + contractId + '/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrftoken }
+            })
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.status === 'success') {
+                    document.querySelectorAll('.main-contract-checkbox').forEach(function(cb) {
+                        if (cb.getAttribute('data-contract-id') !== contractId) {
+                            cb.checked = false;
+                        }
+                    });
+                    const contractNumber = checkbox.closest('.cart-item').querySelector('h3').innerText;
+                    const clientName = checkbox.closest('.cart-item').querySelector('.cart-item-client').innerText;
+                    document.querySelector('.main-contract-display').innerHTML = contractNumber + ' - ' + clientName;
+                    document.querySelector('.create-request-btn').disabled = false;
+                } else {
+                    checkbox.checked = false;
+                }
+            });
         } else {
-            removePrimaryContract(requestId, checkboxElement);
+            fetch('/account-request/' + requestId + '/set-primary/0/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrftoken }
+            })
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.status === 'success') {
+                    document.querySelector('.main-contract-display').innerHTML = 'Не выбран';
+                    document.querySelector('.create-request-btn').disabled = true;
+                } else {
+                    checkbox.checked = true;
+                }
+            });
         }
     });
+});
+
+// Сохранение комментария
+document.querySelectorAll('.comment-input').forEach(function(input) {
+    input.addEventListener('change', function() {
+        const contractId = this.getAttribute('data-contract-id');
+        const comment = this.value;
+        
+        fetch('/api/requested-contracts/update_comment/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            body: JSON.stringify({
+                account_request_id: requestId,
+                contract_id: contractId,
+                comment: comment
+            })
+        });
+    });
+});
+
+// Обновление валюты и номера счета
+const currencyInput = document.getElementById('currency-code-input');
+const accountDisplay = document.getElementById('account-number-display');
+
+if (currencyInput) {
+    currencyInput.addEventListener('input', function() {
+        let value = this.value.replace(/[^0-9]/g, '').slice(0, 3);
+        this.value = value;
+        
+        if (value.length === 3) {
+            const newAccountNumber = generateAccountNumber(value);
+            accountDisplay.textContent = newAccountNumber;
+            
+            fetch('/api/account-requests/' + requestId + '/update_currency/', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({ currency_code: value })
+            });
+        }
+    });
+    
+    if (currencyInput.value && currencyInput.value.length === 3) {
+        accountDisplay.textContent = generateAccountNumber(currencyInput.value);
+    }
 }
 </script>
 {% endblock %}

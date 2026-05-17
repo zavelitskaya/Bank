@@ -107,7 +107,8 @@ def account_request_detail(request, request_id):
         contract.image_url = get_image_url(contract.image_key)
         requested_contracts_with_details.append({
             'contract': contract,
-            'quantity': item.quantity,
+            'comment': item.comment,
+            'connection_date': item.connection_date,
         })
     
     context = {
@@ -307,26 +308,28 @@ class AccountRequestViewSet(viewsets.ModelViewSet):
         draft, created = AccountRequest.objects.get_or_create(
             creator=request.user,
             status='DRAFT',
-            defaults={'balance_account_number': '', 'currency_code': '810'}
+            defaults={'currency_code': '810'}
         )
-        
+    
         contract_id = request.data.get('contract_id')
-        quantity = request.data.get('quantity', 1)
         
         try:
             contract = BankContract.objects.get(id=contract_id, is_active=True)
         except BankContract.DoesNotExist:
             return Response({'error': 'Договор не найден'}, status=status.HTTP_404_NOT_FOUND)
         
+        # Проверяем, есть ли уже такой договор в заявке
         requested_contract, created = RequestedContract.objects.get_or_create(
             account_request=draft,
             bank_contract=contract,
-            defaults={'quantity': quantity}
+            defaults={
+                'comment': '',
+                'connection_date': timezone.now().date()
+            }
         )
         
         if not created:
-            requested_contract.quantity += quantity
-            requested_contract.save()
+            return Response({'error': 'Договор уже добавлен в заявку'}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(RequestedContractSerializer(requested_contract).data)
     
@@ -506,7 +509,23 @@ class RequestedContractViewSet(viewsets.ModelViewSet):
             requested_contract.save()
         
         return Response(RequestedContractSerializer(requested_contract).data)
-
+    @action(detail=False, methods=['post'])
+    def update_comment(self, request):
+        """Обновление комментария в м-м связи"""
+        account_request_id = request.data.get('account_request_id')
+        contract_id = request.data.get('contract_id')
+        comment = request.data.get('comment', '')
+        
+        try:
+            requested_contract = RequestedContract.objects.get(
+                account_request_id=account_request_id,
+                bank_contract_id=contract_id
+            )
+            requested_contract.comment = comment
+            requested_contract.save()
+            return Response({'status': 'success', 'comment': comment})
+        except RequestedContract.DoesNotExist:
+            return Response({'error': 'Связь не найдена'}, status=404)
 
 # ============================================
 # АУТЕНТИФИКАЦИЯ (Домен пользователь)
@@ -606,3 +625,34 @@ def update_user(request):
     
     request.user.save()
     return JsonResponse({'status': 'success', 'username': request.user.username})
+
+@action(detail=True, methods=['put'])
+def update_currency(self, request, pk=None):
+    """Обновление валюты в заявке"""
+    account_request = self.get_object()
+    if account_request.creator != request.user:
+        return Response({'error': 'Только создатель может изменять заявку'}, status=403)
+    
+    if account_request.status != 'DRAFT':
+        return Response({'error': 'Можно изменять только черновик'}, status=400)
+    
+    currency_code = request.data.get('currency_code', '')
+    
+    # Валидация: только 3 цифры
+    if len(currency_code) != 3 or not currency_code.isdigit():
+        return Response({'error': 'Код валюты должен содержать 3 цифры'}, status=400)
+    
+    account_request.currency_code = currency_code
+    account_request.save()
+    
+    # Генерируем новый номер счета
+    import random
+    random_digits = str(random.randint(10000000, 99999999))
+    account_request.assigned_account_number = f"40802{currency_code}{random_digits}"
+    account_request.save()
+    
+    return Response({
+        'status': 'success',
+        'currency_code': currency_code,
+        'assigned_account_number': account_request.assigned_account_number
+    })
