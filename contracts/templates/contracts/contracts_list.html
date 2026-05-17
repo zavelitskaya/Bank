@@ -14,10 +14,17 @@
     </form>
 
     <!-- Карточка корзины (текущая заявка) -->
+    {% if account_request_id %}
     <a href="{% url 'account_request_detail' account_request_id %}" class="cart-widget">
         <img src="{% static 'icons/cart.svg' %}" alt="Заявка" class="cart-icon">
         <span class="cart-count">{{ cart_items_count }}</span>
     </a>
+    {% else %}
+    <div class="cart-widget empty">
+        <img src="{% static 'icons/cart.svg' %}" alt="Заявка" class="cart-icon">
+        <span class="cart-count">0</span>
+    </div>
+    {% endif %}
 </div>
 
 <div class="contracts-grid">
@@ -28,28 +35,68 @@
             <p>{{ contract.counterparty_name }}</p>
         </div>
 
-        <div class="card-bottom">
-            <div class="card-buttons">
-                <a href="{% url 'contract_detail' contract.id %}" class="learn-more-btn">
-                    Подробнее
-                </a>
-            </div>
+        <div class="card-buttons">
+            <a href="{% url 'contract_detail' contract.id %}" class="learn-more-btn">
+                Подробнее
+            </a>
+            {% if user.is_authenticated %}
+            <button class="add-to-cart-btn" data-contract-id="{{ contract.id }}">
+                Добавить в заявку
+            </button>
+            {% endif %}
+        </div>
 
-            <div class="contract-image">
-                {% if contract.image_url %}
-                    <img src="{{ contract.image_url }}" alt="{{ contract.contract_type }}" class="contract-img">
-                {% else %}
-                    <div class="no-image">Нет изображения</div>
-                {% endif %}
-            </div>
+        <div class="contract-image">
+            {% if contract.image_url %}
+            <img src="{{ contract.image_url }}" alt="{{ contract.contract_type }}" class="contract-img">
+            {% else %}
+            <div class="no-image">Нет изображения</div>
+            {% endif %}
         </div>
     </div>
-    {% endfor %}
+</div>
+{% endfor %}
 </div>
 
 {% if not contracts %}
-    <div class="empty-results">
-        <p>Договоры не найдены</p>
-    </div>
+<div class="empty-results">
+    <p>Договоры не найдены</p>
+</div>
 {% endif %}
+{% endblock %}
+{% block extra_js %}
+<script>
+document.querySelectorAll('.add-to-cart-btn').forEach(button => {
+    button.addEventListener('click', function() {
+        const contractId = this.dataset.contractId;
+        
+        fetch(`/api/account-requests/cart_icon/`)
+            .then(response => response.json())
+            .then(data => {
+                const requestId = data.account_request_id;
+                if (!requestId) {
+                    alert('Ошибка: не найдена заявка-черновик');
+                    return;
+                }
+                
+                return fetch(`/api/account-requests/${requestId}/add_contract/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({ contract_id: contractId, quantity: 1 })
+                });
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.id) {
+                    alert('Договор добавлен в заявку');
+                    location.reload();
+                }
+            })
+            .catch(error => console.error('Error:', error));
+    });
+});
+</script>
 {% endblock %}
