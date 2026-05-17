@@ -1,0 +1,532 @@
+{
+  "info": {
+    "name": "Banking API - Банковские счета",
+    "description": "Коллекция для 3 лабораторной работы. Тема: банковские договоры и заявки на открытие счетов",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Договоры (BankContracts)",
+      "item": [
+        {
+          "name": "GET список договоров",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/contracts/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "contracts", ""]
+            }
+          }
+        },
+        {
+          "name": "GET список с фильтром по типу",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/contracts/?contract_type=RKO",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "contracts", ""],
+              "query": [
+                {
+                  "key": "contract_type",
+                  "value": "RKO"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET список с поиском по контрагенту",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/contracts/?search=ООО",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "contracts", ""],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "ООО"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET один договор",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/contracts/1/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "contracts", "1", ""]
+            }
+          }
+        },
+        {
+          "name": "POST добавить договор",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"contract_number\": \"РКО-004/2025\",\n    \"contract_type\": \"RKO\",\n    \"counterparty_name\": \"ООО \\\"Новый клиент\\\"\",\n    \"description\": \"Расчетно-кассовое обслуживание\",\n    \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/contracts/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "contracts", ""]
+            }
+          }
+        },
+        {
+          "name": "PUT изменить договор",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"contract_number\": \"РКО-004/2025\",\n    \"contract_type\": \"SALARY\",\n    \"counterparty_name\": \"ООО \\\"Новый клиент (изменён)\\\"\",\n    \"description\": \"Изменённое описание\",\n    \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/contracts/4/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "contracts", "4", ""]
+            }
+          }
+        },
+        {
+          "name": "DELETE удалить договор",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/contracts/4/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "contracts", "4", ""]
+            }
+          }
+        },
+        {
+          "name": "POST загрузить изображение",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": "/path/to/your/image.jpg"
+                }
+              ]
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/contracts/1/upload-image/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "contracts", "1", "upload-image", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Заявки (AccountRequests)",
+      "item": [
+        {
+          "name": "GET иконка корзины (черновик)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/account-requests/cart_icon/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "account-requests", "cart_icon", ""]
+            }
+          }
+        },
+        {
+          "name": "GET список заявок (без черновиков)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/account-requests/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "account-requests", ""]
+            }
+          }
+        },
+        {
+          "name": "GET список с фильтром по статусу",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/account-requests/?status=SUBMITTED",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "account-requests", ""],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "SUBMITTED"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET список с фильтром по дате",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/account-requests/?submitted_after=2025-01-01&submitted_before=2025-12-31",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "account-requests", ""],
+              "query": [
+                {
+                  "key": "submitted_after",
+                  "value": "2025-01-01"
+                },
+                {
+                  "key": "submitted_before",
+                  "value": "2025-12-31"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET одна заявка",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/account-requests/1/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "account-requests", "1", ""]
+            }
+          }
+        },
+        {
+          "name": "POST добавить договор в заявку",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"contract_id\": 2,\n    \"quantity\": 1\n}"
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/account-requests/1/add_contract/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "account-requests", "1", "add_contract", ""]
+            }
+          }
+        },
+        {
+          "name": "PUT изменить поля заявки",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"balance_account_number\": \"40802810\",\n    \"currency_code\": \"840\"\n}"
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/account-requests/1/update_request/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "account-requests", "1", "update_request", ""]
+            }
+          }
+        },
+        {
+          "name": "PUT сформировать заявку",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/account-requests/1/submit/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "account-requests", "1", "submit", ""]
+            }
+          }
+        },
+        {
+          "name": "PUT завершить заявку (модератор)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/account-requests/1/complete/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "account-requests", "1", "complete", ""]
+            }
+          }
+        },
+        {
+          "name": "PUT отклонить заявку (модератор)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/account-requests/1/reject/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "account-requests", "1", "reject", ""]
+            }
+          }
+        },
+        {
+          "name": "DELETE удалить заявку (черновик)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/account-requests/1/delete_request/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "account-requests", "1", "delete_request", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Связи м-м (RequestedContracts)",
+      "item": [
+        {
+          "name": "GET список связей",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/requested-contracts/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "requested-contracts", ""]
+            }
+          }
+        },
+        {
+          "name": "PUT изменить количество",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"quantity\": 5\n}"
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/requested-contracts/1/update_quantity/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "requested-contracts", "1", "update_quantity", ""]
+            }
+          }
+        },
+        {
+          "name": "DELETE удалить связь",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"contract_id\": 2,\n    \"account_request_id\": 1\n}"
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/requested-contracts/1/remove_from_request/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "requested-contracts", "1", "remove_from_request", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Пользователи (Auth)",
+      "item": [
+        {
+          "name": "POST регистрация",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"newuser\",\n    \"password\": \"password123\",\n    \"email\": \"user@example.com\"\n}"
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/register/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "register", ""]
+            }
+          }
+        },
+        {
+          "name": "POST аутентификация (логин)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"admin\",\n    \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/login/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "login", ""]
+            }
+          }
+        },
+        {
+          "name": "GET профиль пользователя",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/profile/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "profile", ""]
+            }
+          }
+        },
+        {
+          "name": "PUT обновить профиль",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"newemail@example.com\",\n    \"first_name\": \"Иван\",\n    \"last_name\": \"Петров\"\n}"
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/profile/update/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "profile", "update", ""]
+            }
+          }
+        },
+        {
+          "name": "POST деавторизация (выход)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/logout/",
+              "protocol": "http",
+              "host": ["127", "0", "0", "1"],
+              "port": "8000",
+              "path": ["api", "logout", ""]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000"
+    }
+  ]
+}

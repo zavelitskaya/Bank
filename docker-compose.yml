@@ -15,7 +15,7 @@ services:
     restart: unless-stopped
 
   minio:
-    image: minio/minio:latest
+    image: minio/minio
     container_name: banking_minio
     command: server /data --console-address ":9001"
     environment:
@@ -28,20 +28,16 @@ services:
       - minio_data:/data
     restart: unless-stopped
 
-  setup-minio:
-    image: minio/mc:latest
-    depends_on:
-      - minio
-    entrypoint: >
-      /bin/sh -c "
-      sleep 10;
-      mc alias set myminio http://minio:9000 minioadmin minioadmin;
-      mc mb myminio/banking-images --ignore-existing;
-      mc policy set download myminio/banking-images;
-      echo 'Minio bucket created and set to public!';
-      exit 0;
-      "
+  redis:
+    image: redis:7
+    container_name: banking_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
 
 volumes:
   postgres_data:
   minio_data:
+  redis_data:
