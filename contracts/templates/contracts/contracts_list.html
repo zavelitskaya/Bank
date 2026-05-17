@@ -6,21 +6,20 @@
 {% block content %}
 <div class="controls-container">
     <form method="get" class="search-box">
-        <input type="text" name="search" placeholder="Поиск по клиенту..." class="search-input"
-            value="{{ search_query }}">
+        <input type="text" name="search" placeholder="Поиск по клиенту..." class="search-input" value="{{ search_query }}">
         <button type="submit" class="search-btn">
             <img src="{% static 'icons/search.svg' %}" alt="Поиск" class="search-icon">
         </button>
     </form>
 
-    <!-- Карточка корзины (текущая заявка) -->
+    <!-- Карточка корзины -->
     {% if account_request_id %}
     <a href="{% url 'account_request_detail' account_request_id %}" class="cart-widget">
         <img src="{% static 'icons/cart.svg' %}" alt="Заявка" class="cart-icon">
         <span class="cart-count">{{ cart_items_count }}</span>
     </a>
     {% else %}
-    <div class="cart-widget empty">
+    <div class="cart-widget" style="opacity: 0.6;">
         <img src="{% static 'icons/cart.svg' %}" alt="Заявка" class="cart-icon">
         <span class="cart-count">0</span>
     </div>
@@ -30,72 +29,60 @@
 <div class="contracts-grid">
     {% for contract in contracts %}
     <div class="contract-card">
+        <div class="contract-image">
+            {% if contract.image_url %}
+                <img src="{{ contract.image_url }}" alt="{{ contract.contract_type }}" class="contract-img">
+            {% else %}
+                <div class="no-image">📷 Нет фото</div>
+            {% endif %}
+        </div>
+        
         <div class="contract-info">
             <h3>{{ contract.contract_number }}</h3>
             <p>{{ contract.counterparty_name }}</p>
         </div>
 
         <div class="card-buttons">
-            <a href="{% url 'contract_detail' contract.id %}" class="learn-more-btn">
-                Подробнее
-            </a>
-            {% if user.is_authenticated %}
-            <button class="add-to-cart-btn" data-contract-id="{{ contract.id }}">
-                Добавить в заявку
-            </button>
-            {% endif %}
-        </div>
-
-        <div class="contract-image">
-            {% if contract.image_url %}
-            <img src="{{ contract.image_url }}" alt="{{ contract.contract_type }}" class="contract-img">
-            {% else %}
-            <div class="no-image">Нет изображения</div>
-            {% endif %}
+            <a href="{% url 'contract_detail' contract.id %}" class="learn-more-btn">Подробнее</a>
+            <button class="add-to-cart-btn" data-contract-id="{{ contract.id }}">+ В заявку</button>
         </div>
     </div>
-</div>
-{% endfor %}
+    {% endfor %}
 </div>
 
 {% if not contracts %}
-<div class="empty-results">
-    <p>Договоры не найдены</p>
-</div>
+    <div class="empty-results">
+        <p>Договоры не найдены</p>
+    </div>
 {% endif %}
 {% endblock %}
+
 {% block extra_js %}
 <script>
 document.querySelectorAll('.add-to-cart-btn').forEach(button => {
     button.addEventListener('click', function() {
         const contractId = this.dataset.contractId;
         
-        fetch(`/api/account-requests/cart_icon/`)
-            .then(response => response.json())
-            .then(data => {
-                const requestId = data.account_request_id;
-                if (!requestId) {
-                    alert('Ошибка: не найдена заявка-черновик');
-                    return;
-                }
-                
-                return fetch(`/api/account-requests/${requestId}/add_contract/`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': '{{ csrf_token }}'
-                    },
-                    body: JSON.stringify({ contract_id: contractId, quantity: 1 })
-                });
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.id) {
-                    alert('Договор добавлен в заявку');
-                    location.reload();
-                }
-            })
-            .catch(error => console.error('Error:', error));
+        fetch(`/api/account-requests/add_contract/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ contract_id: contractId, quantity: 1 })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.id || data.status === 'success') {
+                location.reload();
+            } else {
+                alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Ошибка при добавлении в заявку');
+        });
     });
 });
 </script>

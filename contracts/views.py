@@ -7,7 +7,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, login, logout
-from rest_framework import viewsets, filters, status
+from rest_framework import viewsets, filters, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -16,10 +16,10 @@ from django.conf import settings
 import os
 import uuid
 import random
+import json
 from .models import BankContract, AccountRequest, RequestedContract
 from .serializers import BankContractSerializer, AccountRequestSerializer, RequestedContractSerializer
-from rest_framework import permissions
-from .permissions import IsModerator, IsModeratorOrReadOnly
+from .permissions import IsModerator, IsModeratorOrReadOnly, IsOwner
 
 # ============================================
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
@@ -129,11 +129,18 @@ def delete_account_request(request, request_id):
 
 
 def set_primary_contract(request, request_id, contract_id):
-    """Установка основного договора для счета"""
+    """Установка/снятие основного договора для счета"""
     if request.method == 'POST':
         account_request = get_object_or_404(AccountRequest, id=request_id, status='DRAFT')
-        contract = get_object_or_404(BankContract, id=contract_id)
         
+        # Если contract_id == 0, снимаем основной договор
+        if contract_id == 0:
+            account_request.primary_contract = None
+            account_request.save()
+            return JsonResponse({'status': 'success', 'message': 'Основной договор снят'})
+        
+        # Иначе устанавливаем новый основной договор
+        contract = get_object_or_404(BankContract, id=contract_id)
         account_request.primary_contract = contract
         account_request.save()
         
@@ -230,13 +237,14 @@ def upload_contract_image(request, contract_id):
 
 
 # ============================================
-# API VIEWSETS (для 3 лабораторной)
+# API VIEWSETS (для 3-4 лабораторных)
 # ============================================
 
 class BankContractViewSet(viewsets.ModelViewSet):
     """API для работы с договорами"""
     queryset = BankContract.objects.filter(is_active=True)
     serializer_class = BankContractSerializer
+    permission_classes = [IsModeratorOrReadOnly]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['counterparty_name', 'contract_number']
     filterset_fields = ['contract_type', 'is_active']
@@ -261,47 +269,46 @@ class BankContractViewSet(viewsets.ModelViewSet):
 class AccountRequestViewSet(viewsets.ModelViewSet):
     """API для работы с заявками"""
     serializer_class = AccountRequestSerializer
+    permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['status', 'currency_code']
     ordering_fields = ['created_at', 'submitted_at']
     
     def get_queryset(self):
-        # Исключаем DELETED и черновики (черновики отдельно через иконку корзины)
-        queryset = AccountRequest.objects.exclude(status='DELETED').exclude(status='DRAFT')
-        
-        submitted_after = self.request.query_params.get('submitted_after')
-        submitted_before = self.request.query_params.get('submitted_before')
-        
-        if submitted_after:
-            queryset = queryset.filter(submitted_at__gte=submitted_after)
-        if submitted_before:
-            queryset = queryset.filter(submitted_at__lte=submitted_before)
-        
-        return queryset
+        user = self.request.user
+        if user.is_staff:
+            return AccountRequest.objects.exclude(status='DELETED').exclude(status='DRAFT')
+        return AccountRequest.objects.filter(creator=user).exclude(status='DELETED').exclude(status='DRAFT')
+    
+    def perform_create(self, serializer):
+        serializer.save(creator=self.request.user)
     
     @action(detail=False, methods=['get'])
     def cart_icon(self, request):
-        """GET иконки корзины - возвращает id черновика и количество услуг"""
-        user = get_current_user(request)
-        if not user:
+        """GET иконки корзины"""
+        if not request.user.is_authenticated:
             return Response({'account_request_id': None, 'items_count': 0})
         
-        draft = get_or_create_draft_request(user)
-        if draft:
-            items_count = draft.requested_contracts.count()
-            return Response({
-                'account_request_id': draft.id,
-                'items_count': items_count
-            })
-        return Response({'account_request_id': None, 'items_count': 0})
+        draft, created = AccountRequest.objects.get_or_create(
+            creator=request.user,
+            status='DRAFT',
+            defaults={'balance_account_number': '', 'currency_code': '810'}
+        )
+        
+        items_count = draft.requested_contracts.count()
+        return Response({
+            'account_request_id': draft.id,
+            'items_count': items_count
+        })
     
-    @action(detail=True, methods=['post'])
-    def add_contract(self, request, pk=None):
+    @action(detail=False, methods=['post'])
+    def add_contract(self, request):
         """Добавление договора в заявку-черновик"""
-        account_request = self.get_object()
-        if account_request.status != 'DRAFT':
-            return Response({'error': 'Можно добавлять договоры только в черновик'}, 
-                          status=status.HTTP_400_BAD_REQUEST)
+        draft, created = AccountRequest.objects.get_or_create(
+            creator=request.user,
+            status='DRAFT',
+            defaults={'balance_account_number': '', 'currency_code': '810'}
+        )
         
         contract_id = request.data.get('contract_id')
         quantity = request.data.get('quantity', 1)
@@ -312,7 +319,7 @@ class AccountRequestViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Договор не найден'}, status=status.HTTP_404_NOT_FOUND)
         
         requested_contract, created = RequestedContract.objects.get_or_create(
-            account_request=account_request,
+            account_request=draft,
             bank_contract=contract,
             defaults={'quantity': quantity}
         )
@@ -325,8 +332,11 @@ class AccountRequestViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['put'])
     def update_request(self, request, pk=None):
-        """PUT изменения полей заявки (balance_account_number, currency_code)"""
+        """PUT изменения полей заявки"""
         account_request = self.get_object()
+        if account_request.creator != request.user:
+            return Response({'error': 'Только создатель может изменять заявку'}, status=403)
+        
         if account_request.status != 'DRAFT':
             return Response({'error': 'Можно изменять только черновик'}, 
                           status=status.HTTP_400_BAD_REQUEST)
@@ -344,8 +354,11 @@ class AccountRequestViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['put'])
     def submit(self, request, pk=None):
-        """Сформировать заявку (проверка обязательных полей)"""
+        """Сформировать заявку"""
         account_request = self.get_object()
+        if account_request.creator != request.user:
+            return Response({'error': 'Только создатель может сформировать заявку'}, status=403)
+        
         if account_request.status != 'DRAFT':
             return Response({'error': 'Можно сформировать только черновик'}, 
                           status=status.HTTP_400_BAD_REQUEST)
@@ -354,44 +367,32 @@ class AccountRequestViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Выберите основной договор'}, 
                           status=status.HTTP_400_BAD_REQUEST)
         
-        if not account_request.balance_account_number:
-            return Response({'error': 'Укажите балансовый номер счета'}, 
-                          status=status.HTTP_400_BAD_REQUEST)
-        
         account_request.status = 'SUBMITTED'
         account_request.submitted_at = timezone.now()
         account_request.save()
         
         return Response(AccountRequestSerializer(account_request).data)
     
-    @action(detail=True, methods=['put'])
+    @action(detail=True, methods=['put'], permission_classes=[IsModerator])
     def complete(self, request, pk=None):
-        """Завершить заявку (модератор) с расчётом поля результата"""
+        """Завершить заявку (только модератор)"""
         account_request = self.get_object()
         if account_request.status != 'SUBMITTED':
             return Response({'error': 'Можно завершить только сформированную заявку'}, 
                           status=status.HTTP_400_BAD_REQUEST)
         
-        # Расчёт номера счета (поле результата)
-        # Формула: балансовый номер + код валюты + случайные цифры
         account_number = f"{account_request.balance_account_number}{account_request.currency_code}{random.randint(1000000, 9999999)}"
         account_request.assigned_account_number = account_number
         account_request.status = 'COMPLETED'
         account_request.completed_at = timezone.now()
-        
-        # Установка модератора (текущий пользователь или admin)
-        if request.user.is_authenticated:
-            account_request.moderator = request.user
-        else:
-            account_request.moderator = User.objects.filter(is_superuser=True).first()
-        
+        account_request.moderator = request.user
         account_request.save()
         
         return Response(AccountRequestSerializer(account_request).data)
     
-    @action(detail=True, methods=['put'])
+    @action(detail=True, methods=['put'], permission_classes=[IsModerator])
     def reject(self, request, pk=None):
-        """Отклонить заявку (модератор)"""
+        """Отклонить заявку (только модератор)"""
         account_request = self.get_object()
         if account_request.status != 'SUBMITTED':
             return Response({'error': 'Можно отклонить только сформированную заявку'}, 
@@ -399,39 +400,76 @@ class AccountRequestViewSet(viewsets.ModelViewSet):
         
         account_request.status = 'REJECTED'
         account_request.completed_at = timezone.now()
-        
-        if request.user.is_authenticated:
-            account_request.moderator = request.user
-        else:
-            account_request.moderator = User.objects.filter(is_superuser=True).first()
-        
+        account_request.moderator = request.user
         account_request.save()
         
         return Response(AccountRequestSerializer(account_request).data)
     
     @action(detail=True, methods=['delete'])
     def delete_request(self, request, pk=None):
-        """Удаление заявки (устанавливаем дату формирования?) - по заданию дата формирования"""
+        """Удаление заявки"""
         account_request = self.get_object()
+        if account_request.creator != request.user:
+            return Response({'error': 'Только создатель может удалить заявку'}, status=403)
+        
         if account_request.status != 'DRAFT':
             return Response({'error': 'Можно удалить только черновик'}, 
                           status=status.HTTP_400_BAD_REQUEST)
         
-        # По заданию: DELETE удаление (дата формирования)
-        # Устанавливаем дату формирования как дату удаления
         account_request.submitted_at = timezone.now()
         account_request.status = 'DELETED'
         account_request.save()
         
         return Response({'status': 'deleted'})
-
+    
+    @action(detail=True, methods=['post'])
+    def set_primary(self, request, pk=None):
+        """Установка основного договора"""
+        account_request = self.get_object()
+        contract_id = request.data.get('contract_id')
+        
+        if account_request.status != 'DRAFT':
+            return Response({'error': 'Можно изменять только черновик'}, status=400)
+        
+        try:
+            contract = BankContract.objects.get(id=contract_id, is_active=True)
+        except BankContract.DoesNotExist:
+            return Response({'error': 'Договор не найден'}, status=404)
+        
+        account_request.primary_contract = contract
+        account_request.save()
+        
+        return Response({'status': 'success', 'contract_id': contract_id})
+    
+    @action(detail=True, methods=['delete'])
+    def remove_contract(self, request, pk=None):
+        """Удаление договора из заявки"""
+        account_request = self.get_object()
+        contract_id = request.data.get('contract_id')
+        
+        if account_request.status != 'DRAFT':
+            return Response({'error': 'Можно изменять только черновик'}, status=400)
+        
+        deleted = RequestedContract.objects.filter(
+            account_request=account_request,
+            bank_contract_id=contract_id
+        ).delete()
+        
+        if deleted[0]:
+            return Response({'status': 'success'})
+        return Response({'error': 'Договор не найден в заявке'}, status=404)
 
 class RequestedContractViewSet(viewsets.ModelViewSet):
     """API для работы с м-м связями"""
     serializer_class = RequestedContractSerializer
+    permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
-        return RequestedContract.objects.filter(account_request__status='DRAFT')
+        user = self.request.user
+        return RequestedContract.objects.filter(
+            account_request__creator=user,
+            account_request__status='DRAFT'
+        )
     
     @action(detail=True, methods=['delete'])
     def remove_from_request(self, request, pk=None):
@@ -445,7 +483,8 @@ class RequestedContractViewSet(viewsets.ModelViewSet):
         
         deleted = RequestedContract.objects.filter(
             account_request_id=account_request_id,
-            bank_contract_id=contract_id
+            bank_contract_id=contract_id,
+            account_request__creator=request.user
         ).delete()
         
         if deleted[0]:
@@ -454,8 +493,12 @@ class RequestedContractViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['put'])
     def update_quantity(self, request, pk=None):
-        """PUT изменение количества (без PK м-м)"""
+        """PUT изменение количества"""
         requested_contract = self.get_object()
+        
+        if requested_contract.account_request.creator != request.user:
+            return Response({'error': 'Только создатель может изменять'}, status=403)
+        
         quantity = request.data.get('quantity')
         
         if quantity is not None:
@@ -473,7 +516,11 @@ class RequestedContractViewSet(viewsets.ModelViewSet):
 @require_http_methods(["POST"])
 def register_user(request):
     """POST регистрация нового пользователя"""
-    data = json.loads(request.body)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    
     username = data.get('username')
     password = data.get('password')
     email = data.get('email', '')
@@ -485,21 +532,30 @@ def register_user(request):
         return JsonResponse({'error': 'Пользователь уже существует'}, status=400)
     
     user = User.objects.create_user(username=username, password=password, email=email)
-    return JsonResponse({'status': 'success', 'user_id': user.id})
+    return JsonResponse({'status': 'success', 'user_id': user.id, 'username': user.username})
 
 
 @csrf_exempt
 @require_http_methods(["POST"])
 def auth_login(request):
     """POST аутентификация"""
-    data = json.loads(request.body)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    
     username = data.get('username')
     password = data.get('password')
     
     user = authenticate(request, username=username, password=password)
     if user is not None:
         login(request, user)
-        return JsonResponse({'status': 'success', 'user_id': user.id, 'username': user.username})
+        return JsonResponse({
+            'status': 'success', 
+            'user_id': user.id, 
+            'username': user.username,
+            'is_staff': user.is_staff
+        })
     return JsonResponse({'error': 'Неверные учетные данные'}, status=401)
 
 
@@ -534,7 +590,10 @@ def update_user(request):
     if not request.user.is_authenticated:
         return JsonResponse({'error': 'Не авторизован'}, status=401)
     
-    data = json.loads(request.body)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
     
     if 'email' in data:
         request.user.email = data['email']
@@ -542,9 +601,8 @@ def update_user(request):
         request.user.first_name = data['first_name']
     if 'last_name' in data:
         request.user.last_name = data['last_name']
-    if 'password' in data:
+    if 'password' in data and data['password']:
         request.user.set_password(data['password'])
     
     request.user.save()
-    return JsonResponse({'status': 'success'})
-
+    return JsonResponse({'status': 'success', 'username': request.user.username})
