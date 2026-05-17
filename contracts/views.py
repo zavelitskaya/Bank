@@ -20,6 +20,8 @@ import json
 from .models import BankContract, AccountRequest, RequestedContract
 from .serializers import BankContractSerializer, AccountRequestSerializer, RequestedContractSerializer
 from .permissions import IsModerator, IsModeratorOrReadOnly, IsOwner
+from django.shortcuts import redirect
+
 
 # ============================================
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
@@ -97,7 +99,14 @@ def contract_detail(request, contract_id):
 
 def account_request_detail(request, request_id):
     """Страница 3: просмотр заявки (корзины)"""
-    account_request = get_object_or_404(AccountRequest, id=request_id, status='DRAFT')
+    try:
+        account_request = AccountRequest.objects.get(id=request_id)
+    except AccountRequest.DoesNotExist:
+        return redirect('contracts_list')
+    
+    # Если заявка не в статусе DRAFT - редирект на главную
+    if account_request.status != 'DRAFT':
+        return redirect('contracts_list')
     
     requested_contracts = account_request.requested_contracts.select_related('bank_contract').all()
     
